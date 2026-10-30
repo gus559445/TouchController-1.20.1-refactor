@@ -1,0 +1,20 @@
+// CI 专用 init script：跳过所有「交叉编译原生库」的任务。
+//
+// 原因：proxy-linux / proxy-windows 的原生编译要 podman 容器镜像
+// （localhost/touchcontroller-linux、localhost/llvm-mingw-jdk），
+// proxy-server-android 要 NDK + cargo-ndk。CI 环境里这些工具链要么没有、
+// 要么一跑就是十几分钟。
+//
+// 这些 jar 里的 libproxy_*.so / *.dll 本来就不在 CI 里编，而是编译完成后
+// 从 old.jar 抽出来注入主 jar（见 workflow 的 Inject native libs 步骤），
+// 所以这里把原生编译任务整体关掉即可：产物是空 jar，随后被注入覆盖。
+//
+// 用法：./gradlew ... --init-script ci/disable-native-compile.gradle
+
+allprojects {
+    tasks.configureEach { task ->
+        if (task.name.startsWith('compileNative') || task.name.startsWith('compileRust')) {
+            task.enabled = false
+        }
+    }
+}
