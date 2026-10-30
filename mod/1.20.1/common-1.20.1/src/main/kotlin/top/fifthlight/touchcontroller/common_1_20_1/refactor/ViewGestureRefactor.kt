@@ -32,6 +32,12 @@ import kotlin.uuid.Uuid
 
 private val viewUuid = fastRandomUuid()
 
+/** 吃东西吃到饱 / 用完之后的收手窗口（tick）。窗口内不挖方块、不做交互。 */
+private const val EXHAUST_TICKS = 6
+
+/** pointer id -> 收手窗口结束的 clientTick */
+private val exhaustedUntilTicks = mutableMapOf<Int, Int>()
+
 /** 视野区手势能做的全部动作。判定只产出它，执行只在 [ViewKeyGate.apply] 里发生。 */
 internal sealed interface ViewEffect {
     data object LockAttack : ViewEffect
@@ -40,6 +46,9 @@ internal sealed interface ViewEffect {
     data object UnlockUse : ViewEffect
     data object TapAttack : ViewEffect
     data object TapUse : ViewEffect
+
+    /** 主动开始使用手上物品（吃第一口 / 拉弓），抢在原版拿这一下右键去放方块之前 */
+    data object StartUseItem : ViewEffect
 }
 
 /**
@@ -107,7 +116,14 @@ internal object ViewGestureMachine {
         if (!shouldDecide) return HoldDecision(input.viewState, emptyList())
 
         if (input.itemUsable) {
-            return HoldDecision(ViewPointerState.USING, listOf(ViewEffect.LockUse))
+            // 对着方块时必须先主动「开始使用」：甜浆果 / 发光浆果这类既是食物又是 BlockItem 的东西，
+            // 否则原版会先走 useItemOn，把浆果放到方块上，根本吃不到。
+            val effects = if (input.crosshairTarget == CrosshairTarget.BLOCK) {
+                listOf(ViewEffect.StartUseItem, ViewEffect.LockUse)
+            } else {
+                listOf(ViewEffect.LockUse)
+            }
+            return HoldDecision(ViewPointerState.USING, effects)
         }
         return when (input.crosshairTarget) {
             CrosshairTarget.BLOCK -> HoldDecision(ViewPointerState.BREAKING, listOf(ViewEffect.LockAttack))
@@ -129,6 +145,8 @@ internal object ViewGestureMachine {
 internal class ViewKeyGate(
     private val handler: KeyBindingHandler,
     private val owner: Uuid,
+    /** 执行 [ViewEffect.StartUseItem]：1.20.1 侧调 gameMode.useItem 真正开始吃/拉弓 */
+    private val startUsingItem: () -> Unit = {},
 ) {
     fun attack(): KeyBindingState = handler.getState(DefaultKeyBindingType.ATTACK)
 
@@ -148,6 +166,7 @@ internal class ViewKeyGate(
                 ViewEffect.UnlockUse -> use().clearLock(owner)
                 ViewEffect.TapAttack -> attack().click()
                 ViewEffect.TapUse -> use().click()
+                ViewEffect.StartUseItem -> startUsingItem()
             }
         }
         if (assertLocks) checkMutualExclusion()
@@ -179,7 +198,9 @@ internal class ViewKeyGate(
  */
 internal fun Context.viewGestureRefactored() {
     val viewActionProvider: ViewActionProvider = get()
-    val gate = ViewKeyGate(keyBindingHandler, viewUuid)
+    val gate = ViewKeyGate(keyBindingHandler, viewUuid) {
+        findUsableHand(config.item.usableItems)?.let(::startUsingHeldItem)
+    }
 
     gate.refresh(timer.renderTick)
 
@@ -193,6 +214,7 @@ internal fun Context.viewGestureRefactored() {
         // pointers 里，它们的 `is Released` 分支每帧被重新匹配一次，等于每帧又点了一下。
         if (previousState !is PointerState.View) {
             pointers.remove(key)
+            exhaustedUntilTicks.remove(key)
             continue
         }
 
@@ -211,6 +233,7 @@ internal fun Context.viewGestureRefactored() {
 
         releasedView = true
         pointers.remove(key)
+        exhaustedUntilTicks.remove(key)
     }
 
     var currentViewPointer = pointers.values.firstOrNull {
@@ -272,10 +295,39 @@ internal fun Context.viewGestureRefactored() {
         )
         gate.apply(decision.effects, timer.renderTick)
 
+        var nextViewState = decision.newViewState
+        if (nextViewState == ViewPointerState.USING) {
+            if (!isHeldItemUsableNow(config.item.usableItems)) {
+                // 吃饱了 / 物品用完了：立刻撤掉 USE（否则原版会拿这口按着的右键去开箱子），
+                // 进入收手窗口，窗口内不挖不交互，过去之后再改判挖方块。
+                gate.apply(listOf(ViewEffect.UnlockUse, ViewEffect.UnlockAttack), timer.renderTick)
+                exhaustedUntilTicks[key] = timer.clientTick + EXHAUST_TICKS
+                nextViewState = ViewPointerState.BREAKING
+            } else if (!player.isUsingItem) {
+                // 上一口吃完了但手指还按着：续上，别让这一下右键落到方块上变成放置
+                gate.apply(listOf(ViewEffect.StartUseItem), timer.renderTick)
+            }
+        } else if (nextViewState == ViewPointerState.BREAKING) {
+            val until = exhaustedUntilTicks[key]
+            if (until != null) {
+                if (timer.clientTick < until) {
+                    // 收手窗口内：视角照常转（上面已经算过），但不挖不交互
+                    pointer.state = state.copy(
+                        lastPosition = pointer.position,
+                        moving = moving,
+                        viewState = nextViewState,
+                    )
+                    return@let
+                }
+                exhaustedUntilTicks.remove(key)
+                gate.apply(listOf(ViewEffect.LockAttack), timer.renderTick)
+            }
+        }
+
         pointer.state = state.copy(
             lastPosition = pointer.position,
             moving = moving,
-            viewState = decision.newViewState,
+            viewState = nextViewState,
         )
     } ?: run {
         pointers.values.forEach {
