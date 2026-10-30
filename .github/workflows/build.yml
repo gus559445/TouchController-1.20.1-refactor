@@ -1,47 +1,77 @@
-name: build
-on: [ pull_request, push ]
-env:
-    MAX_R8_TASKS: 1
+name: build-1.20.1-forge
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
-        steps:
-            -   name: Checkout repository
-                uses: actions/checkout@v4
-                with:
-                    submodules: 'true'
-            -   name: Setup JDK 21
-                uses: actions/setup-java@v4
-                with:
-                    java-version: 21
-                    distribution: 'temurin'
-            -   name: Build Linux podman image
-                working-directory: proxy-linux
-                run: podman build -t touchcontroller-linux .
-            -   name: Build Windows llvm-image podman image
-                working-directory: proxy-windows
-                run: podman build -t llvm-mingw-jdk .
-            -   name: Setup Rust
-                uses: actions-rust-lang/setup-rust-toolchain@v1
-                with:
-                    target: 'armv7-linux-androideabi, aarch64-linux-android, i686-linux-android, x86_64-linux-android'
-            -   name: Setup Gradle
-                uses: gradle/actions/setup-gradle@v4
-            -   name: Install cargo-ndk
-                run: cargo install --force cargo-ndk
-            -   name: Build
-                run: |
-                    ./gradlew :mod:1.20.1:forge-1.20.1:build --no-daemon
-            -   name: Capture build artifacts
-                uses: actions/upload-artifact@v4
-                with:
-                    name: artifacts
-                    compression-level: 9
-                    if-no-files-found: error
-                    path: |
-                        mod/*/build/libs/TouchController-*-*.jar
-                        mod/*/*/build/libs/TouchController-*-*.jar
-                        !**/*-noreobf-*.jar
-                        !**/*-slim-*.jar
-                        !**/*-fat-*.jar
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK + NDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+          packages: >
+            platforms;android-33
+            build-tools;33.0.2
+            ndk;25.2.9519653
+            cmake;3.22.1
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi, i686-linux-android, x86_64-linux-android
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Generate local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "ndk.dir=$ANDROID_HOME/ndk/25.2.9519653" >> local.properties
+
+      - name: Build 1.20.1 forge
+        run: |
+          chmod +x gradlew
+          ./gradlew :mod:1.20.1:forge-1.20.1:clean :mod:1.20.1:forge-1.20.1:build --no-daemon --no-parallel
+        env:
+          GRADLE_OPTS: "-Xmx4G"
+
+      # 原生库不在 CI 里从头交叉编译（podman/llvm-mingw 那套太重），
+      # 直接从 old.jar 里抽 libproxy_* 注入新 jar。
+      - name: Inject native libs from old.jar
+        run: |
+          mkdir -p temp_natives
+          unzip -o old.jar '*.so' '*.dll' -d temp_natives
+          for jar in mod/1.20.1/forge-1.20.1/build/libs/TouchController-*.jar; do
+            case "$(basename "$jar")" in
+              *-slim-*|*-noreobf-*|*-fat-*) continue ;;
+            esac
+            echo "== inject into $jar"
+            (cd temp_natives && zip -r -u "$GITHUB_WORKSPACE/$jar" .)
+            n=$(unzip -l "$jar" | grep -cE '\.so$|\.dll$' || true)
+            echo "natives in jar: $n"
+            if [ "$n" -eq 0 ]; then
+              echo "注入失败：jar 里没有任何 .so/.dll"
+              exit 1
+            fi
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: TouchController-1.20.1-forge
+          compression-level: 9
+          if-no-files-found: warn
+          path: mod/1.20.1/forge-1.20.1/build/libs/*
