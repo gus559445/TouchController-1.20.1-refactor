@@ -273,12 +273,14 @@ internal fun Context.viewGestureRefactored() {
             return@let
         }
 
+        val crosshairTarget = viewActionProvider.getCrosshairTarget()
+
         val decision = ViewGestureMachine.onHold(
             ViewGestureMachine.HoldInput(
                 viewState = state.viewState,
                 pressTimeTicks = timer.clientTick - state.pressTime,
                 moving = moving,
-                crosshairTarget = viewActionProvider.getCrosshairTarget(),
+                crosshairTarget = crosshairTarget,
                 // 上游只看「物品在不在可用清单里」；满饥饿拿食物也会被判成可用，
                 // 于是长按方块变成吃东西（吃不下）而不挖。这里换成本刻真的能不能用。
                 itemUsable = isHeldItemUsableNow(config.item.usableItems),
@@ -295,8 +297,10 @@ internal fun Context.viewGestureRefactored() {
                 // 那时饥饿值已满，自然就走「挖方块」分支。
                 gate.apply(listOf(ViewEffect.UnlockUse, ViewEffect.UnlockAttack), timer.renderTick)
                 nextViewState = ViewPointerState.CONSUMED
-            } else if (!player.isUsingItem) {
-                // 上一口吃完了但手指还按着：续上，别让这一下右键落到方块上变成放置
+            } else if (!player.isUsingItem && crosshairTarget != CrosshairTarget.ENTITY) {
+                // 上一口吃完了但手指还按着：续上，别让这一下右键落到方块上变成放置。
+                // 对着生物时绝不主动 useItem —— 那会把「喂牛/喂羊/驯服」变成自己啃食物，
+                // 右键要留给原版的 interactEntity。
                 gate.apply(listOf(ViewEffect.StartUseItem), timer.renderTick)
             }
         }
