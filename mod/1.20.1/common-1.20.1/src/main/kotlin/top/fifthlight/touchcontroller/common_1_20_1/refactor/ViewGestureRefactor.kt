@@ -264,7 +264,9 @@ internal fun Context.viewGestureRefactored() {
                 pressTimeTicks = timer.clientTick - state.pressTime,
                 moving = moving,
                 crosshairTarget = viewActionProvider.getCrosshairTarget(),
-                itemUsable = player.hasItemsOnHand(config.item.usableItems),
+                // 上游只看「物品在不在可用清单里」；满饥饿拿食物也会被判成可用，
+                // 于是长按方块变成吃东西（吃不下）而不挖。这里换成本刻真的能不能用。
+                itemUsable = isHeldItemUsableNow(config.item.usableItems),
                 holdDetectTicks = config.control.viewHoldDetectTicks,
             )
         )
