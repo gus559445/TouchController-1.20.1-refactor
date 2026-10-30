@@ -19,9 +19,11 @@ dependencies {
     implementation(project(":proxy-client"))
     implementation(project(":proxy-server"))
 
-    implementation(project(":proxy-windows"))
-    implementation(project(":proxy-linux"))
-    implementation(project(":proxy-server-android"))
+    // Native proxy libraries (windows/linux/android) are excluded for the
+    // standalone forge-1.20.1 build; they need podman/llvm-mingw/Android SDK.
+    // implementation(project(":proxy-windows"))
+    // implementation(project(":proxy-linux"))
+    // implementation(project(":proxy-server-android"))
 
     api(libs.compose.runtime)
     api(project(":combine"))

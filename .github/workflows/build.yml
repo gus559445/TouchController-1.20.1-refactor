@@ -44,9 +44,7 @@ jobs:
       - name: Build 1.20.1 forge
         run: |
           chmod +x gradlew
-          ./gradlew :mod:1.20.1:forge-1.20.1:clean :mod:1.20.1:forge-1.20.1:build \
-            --no-daemon --no-parallel \
-            --init-script ci/disable-native-compile.gradle
+          ./gradlew :mod:1.20.1:forge-1.20.1:clean :mod:1.20.1:forge-1.20.1:build --no-daemon --no-parallel
         env:
           GRADLE_OPTS: "-Xmx4G"
 
