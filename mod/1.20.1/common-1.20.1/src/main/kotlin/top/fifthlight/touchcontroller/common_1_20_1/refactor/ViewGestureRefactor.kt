@@ -1,3 +1,7 @@
+// 本模块（common-1.20.1）的 build.gradle.kts 没有 mod/common 那样的
+// compilerOptions.optIn，所以用到 Uuid 的地方要在这里显式 opt-in。
+@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+
 package top.fifthlight.touchcontroller.common_1_20_1.refactor
 
 import org.koin.core.component.get
