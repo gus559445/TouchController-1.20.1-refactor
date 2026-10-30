@@ -188,7 +188,13 @@ internal fun Context.viewGestureRefactored() {
         val state = pointers[key]?.state ?: continue
         if (state !is PointerState.Released) continue
         val previousState = state.previousState
-        if (previousState !is PointerState.View) continue
+        // View 是最后一个布局，原实现在这里把所有 Released 指针统一摘掉。
+        // 不是 View 指针的 Released 也必须移除：否则按钮/背包格的残留指针会永远留在
+        // pointers 里，它们的 `is Released` 分支每帧被重新匹配一次，等于每帧又点了一下。
+        if (previousState !is PointerState.View) {
+            pointers.remove(key)
+            continue
+        }
 
         val decision = ViewGestureMachine.onRelease(
             ViewGestureMachine.ReleaseInput(
