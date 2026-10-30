@@ -32,12 +32,6 @@ import kotlin.uuid.Uuid
 
 private val viewUuid = fastRandomUuid()
 
-/** 吃东西吃到饱 / 用完之后的收手窗口（tick）。窗口内不挖方块、不做交互。 */
-private const val EXHAUST_TICKS = 6
-
-/** pointer id -> 收手窗口结束的 clientTick */
-private val exhaustedUntilTicks = mutableMapOf<Int, Int>()
-
 /** 视野区手势能做的全部动作。判定只产出它，执行只在 [ViewKeyGate.apply] 里发生。 */
 internal sealed interface ViewEffect {
     data object LockAttack : ViewEffect
@@ -214,7 +208,6 @@ internal fun Context.viewGestureRefactored() {
         // pointers 里，它们的 `is Released` 分支每帧被重新匹配一次，等于每帧又点了一下。
         if (previousState !is PointerState.View) {
             pointers.remove(key)
-            exhaustedUntilTicks.remove(key)
             continue
         }
 
@@ -233,7 +226,6 @@ internal fun Context.viewGestureRefactored() {
 
         releasedView = true
         pointers.remove(key)
-        exhaustedUntilTicks.remove(key)
     }
 
     var currentViewPointer = pointers.values.firstOrNull {
@@ -298,29 +290,14 @@ internal fun Context.viewGestureRefactored() {
         var nextViewState = decision.newViewState
         if (nextViewState == ViewPointerState.USING) {
             if (!isHeldItemUsableNow(config.item.usableItems)) {
-                // 吃饱了 / 物品用完了：立刻撤掉 USE（否则原版会拿这口按着的右键去开箱子），
-                // 进入收手窗口，窗口内不挖不交互，过去之后再改判挖方块。
+                // 吃饱了 / 物品用完：撤掉 USE+ATTACK，并把这一按就地终结（CONSUMED）。
+                // 手指继续按着也不再有反应——不挖、不用、不交互；只有松手重按才会重新判定，
+                // 那时饥饿值已满，自然就走「挖方块」分支。
                 gate.apply(listOf(ViewEffect.UnlockUse, ViewEffect.UnlockAttack), timer.renderTick)
-                exhaustedUntilTicks[key] = timer.clientTick + EXHAUST_TICKS
-                nextViewState = ViewPointerState.BREAKING
+                nextViewState = ViewPointerState.CONSUMED
             } else if (!player.isUsingItem) {
                 // 上一口吃完了但手指还按着：续上，别让这一下右键落到方块上变成放置
                 gate.apply(listOf(ViewEffect.StartUseItem), timer.renderTick)
-            }
-        } else if (nextViewState == ViewPointerState.BREAKING) {
-            val until = exhaustedUntilTicks[key]
-            if (until != null) {
-                if (timer.clientTick < until) {
-                    // 收手窗口内：视角照常转（上面已经算过），但不挖不交互
-                    pointer.state = state.copy(
-                        lastPosition = pointer.position,
-                        moving = moving,
-                        viewState = nextViewState,
-                    )
-                    return@let
-                }
-                exhaustedUntilTicks.remove(key)
-                gate.apply(listOf(ViewEffect.LockAttack), timer.renderTick)
             }
         }
 
