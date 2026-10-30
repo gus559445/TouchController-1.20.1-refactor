@@ -2,6 +2,7 @@ package top.fifthlight.touchcontroller.common_1_20_1.refactor
 
 import net.minecraft.client.Minecraft
 import net.minecraft.world.InteractionHand
+import net.minecraft.world.item.ProjectileWeaponItem
 import top.fifthlight.combine.platform_1_20_1.toCombine
 import top.fifthlight.touchcontroller.common.config.ItemList
 
@@ -30,6 +31,11 @@ internal fun findUsableHand(list: ItemList): InteractionHand? {
         val stack = minecraftPlayer.getItemInHand(hand)
         if (stack.isEmpty) return@firstOrNull false
         if (stack.toCombine().item !in list) return@firstOrNull false
+        // 弓 / 弩：没有弹药就拉不动。上游会照样判「能用」→ 锁 USE → 长按方块既不射也不挖。
+        // 这里按原版 getProjectile 的实际结果判断，没箭就当这手用不出去，长按改判挖方块。
+        if (stack.item is ProjectileWeaponItem && minecraftPlayer.getProjectile(stack).isEmpty) {
+            return@firstOrNull false
+        }
         if (!stack.isEdible) return@firstOrNull true
         val food = stack.item.getFoodProperties() ?: return@firstOrNull true
         if (food.canAlwaysEat()) return@firstOrNull true
