@@ -210,12 +210,7 @@ internal fun Context.viewGestureRefactored() {
 
     gate.refresh(timer.renderTick)
 
-    // 基岩版举盾：不进入「使用物品」通道，只把开关交给 PlayerBlockingMixin。
-    // 一旦进了 isUsingItem，原版 startAttack / continueAttack 的 !isUsingItem 前置会把
-    // 挖掘、放置、使用物品、攻击全部禁掉；基岩版的举盾只是实体状态，不占任何通道。
-    BedrockShieldFlag.sneakToBlock = config.item.shieldSneakToBlock
-
-    var releasedView = false
+var releasedView = false
     for (key in pointers.keys.toList()) {
         val state = pointers[key]?.state ?: continue
         if (state !is PointerState.Released) continue

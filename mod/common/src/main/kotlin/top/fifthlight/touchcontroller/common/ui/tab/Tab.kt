@@ -46,7 +46,6 @@ abstract class Tab : Screen {
                 itemTabs.usableItemsTab,
                 itemTabs.showCrosshairItemsTab,
                 itemTabs.crosshairAimingItemsTab,
-                ShieldTab,
             )
         }
     }

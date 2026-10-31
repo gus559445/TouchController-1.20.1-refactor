@@ -41,8 +41,6 @@ data class ItemConfig(
     val usableItems: ItemList,
     val showCrosshairItems: ItemList,
     val crosshairAimingItems: ItemList,
-    /** 基岩版方式：拿着盾牌按住潜行键即举盾（Java 版才是按住使用键）。 */
-    val shieldSneakToBlock: Boolean = true,
 ) {
     companion object {
         fun default(itemListProvider: DefaultItemListProvider) = ItemConfig(
