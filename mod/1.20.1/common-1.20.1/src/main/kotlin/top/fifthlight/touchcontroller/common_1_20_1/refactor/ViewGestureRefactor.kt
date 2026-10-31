@@ -20,6 +20,7 @@ import top.fifthlight.touchcontroller.common.layout.CrosshairStatus
 import top.fifthlight.touchcontroller.common.layout.ViewGestureHook
 import top.fifthlight.touchcontroller.common.state.PointerState
 import top.fifthlight.touchcontroller.common.state.PointerState.View.ViewPointerState
+import top.fifthlight.touchcontroller.helper.EatGuard
 import kotlin.uuid.Uuid
 
 /*
@@ -210,6 +211,9 @@ internal fun Context.viewGestureRefactored() {
 
     gate.refresh(timer.renderTick)
 
+    // 默认不压制方块交互；下面进入 USING 时再打开
+    EatGuard.suppressBlockInteraction = false
+
     var releasedView = false
     for (key in pointers.keys.toList()) {
         val state = pointers[key]?.state ?: continue
@@ -303,6 +307,8 @@ internal fun Context.viewGestureRefactored() {
 
         var nextViewState = decision.newViewState
         if (nextViewState == ViewPointerState.USING) {
+            // 吃东西/拉弓期间压掉方块交互，避免吃完那一两个 tick 把箱子打开
+            EatGuard.suppressBlockInteraction = true
             if (!isHeldItemUsableNow(config.item.usableItems)) {
                 // 吃饱了 / 物品用完：撤掉 USE+ATTACK，并把这一按就地终结（CONSUMED）。
                 // 手指继续按着也不再有反应——不挖、不用、不交互；只有松手重按才会重新判定，

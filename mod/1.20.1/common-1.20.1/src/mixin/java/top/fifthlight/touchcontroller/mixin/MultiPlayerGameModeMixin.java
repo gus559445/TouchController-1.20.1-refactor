@@ -25,6 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import top.fifthlight.combine.platform_1_20_1.ItemFactoryImplKt;
 import top.fifthlight.touchcontroller.common.config.GlobalConfigHolder;
 import top.fifthlight.touchcontroller.common.helper.CrosshairTargetHelper;
+import top.fifthlight.touchcontroller.helper.EatGuard;
 import top.fifthlight.touchcontroller.helper.GameModeWithBreakingProgress;
 import top.fifthlight.touchcontroller.helper.SyncableGameMode;
 
@@ -101,6 +102,18 @@ public abstract class MultiPlayerGameModeMixin implements GameModeWithBreakingPr
         player.setYRot(touchController$prevYaw);
         player.setXRot(touchController$prevPitch);
         this.startPrediction(this.minecraft.level, sequence -> new ServerboundMovePlayerPacket.Rot(player.getYRot(), player.getXRot(), player.onGround()));
+    }
+
+    /**
+     * 正在长按使用物品（吃/拉弓）时，把方块交互整体压掉。
+     * 否则「刚吃完一口」到「下一口接上」之间那一两个 tick，原版会拿按住的右键去
+     * useItemOn —— 对着箱子就是吃完把箱子打开。
+     */
+    @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
+    public void touchController$skipBlockInteractionWhileEating(LocalPlayer player, InteractionHand hand, BlockHitResult result, CallbackInfoReturnable<InteractionResult> cir) {
+        if (EatGuard.suppressBlockInteraction) {
+            cir.setReturnValue(InteractionResult.PASS);
+        }
     }
 
     @Inject(
