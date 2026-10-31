@@ -20,6 +20,7 @@
     "KeyModifierMixin",
     "KeyboardInputMixin",
     "MultiPlayerGameModeMixin",
-    "ToggleKeyMappingMixin"
+    "ToggleKeyMappingMixin",
+    "PlayerBlockingMixin"
   ]
 }

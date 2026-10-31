@@ -50,13 +50,7 @@ internal fun findUsableHand(config: GlobalConfig): InteractionHand? {
 
 internal fun isHeldItemUsableNow(config: GlobalConfig): Boolean = findUsableHand(config) != null
 
-/** 找出拿着盾牌的那只手（主手优先），没有则 null。基岩版举盾靠潜行键，不靠「使用」手势。 */
-internal fun findShieldHand(): InteractionHand? {
-    val minecraftPlayer = Minecraft.getInstance().player ?: return null
-    return InteractionHand.entries.firstOrNull { hand ->
-        minecraftPlayer.getItemInHand(hand).item is ShieldItem
-    }
-}
+
 
 /**
  * 主动**开始**使用手上物品（吃第一口 / 拉弓），不等原版从右键路径自己走到这一步。
