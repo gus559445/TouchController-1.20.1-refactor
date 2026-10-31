@@ -1,5 +1,6 @@
 package top.fifthlight.touchcontroller.mixin;
 
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ShieldItem;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,7 +21,7 @@ import top.fifthlight.touchcontroller.common_1_20_1.refactor.BedrockShieldFlag;
  * 原版判定为真时不动，否则在潜行且持有盾牌时补一个 true。
  * 渲染姿态、减伤判定、举盾减速都读这个值，会一起跟随。</p>
  */
-@Mixin(Player.class)
+@Mixin(LivingEntity.class)
 public abstract class PlayerBlockingMixin {
     @Inject(method = "isBlocking()Z", at = @At("RETURN"), cancellable = true)
     private void touchController$sneakToBlock(CallbackInfoReturnable<Boolean> cir) {
@@ -30,7 +31,11 @@ public abstract class PlayerBlockingMixin {
         if (!BedrockShieldFlag.sneakToBlock) {
             return;
         }
-        Player self = (Player) (Object) this;
+        // isBlocking() 定义在 LivingEntity（1.20.1），Player 没有自己的 override，
+        // 所以注入点必须在 LivingEntity 上，再筛出玩家。
+        if (!((Object) this instanceof Player self)) {
+            return;
+        }
         if (!self.isShiftKeyDown()) {
             return;
         }
