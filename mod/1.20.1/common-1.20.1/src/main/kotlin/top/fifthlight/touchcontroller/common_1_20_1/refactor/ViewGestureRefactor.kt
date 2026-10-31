@@ -32,6 +32,17 @@ import kotlin.uuid.Uuid
 
 private val viewUuid = fastRandomUuid()
 
+/**
+ * 上一次「主动开始使用」的 clientTick。
+ *
+ * <p>服务端每收到一个 useItem 包就把进食/拉弓进度重置为 0，所以这个动作绝不能每帧发：
+ * 客户端一旦因为任何原因没进入 isUsingItem（发包被吞、tick 顺序错开），
+ * 每帧重发就会表现为「进食进度反复归零 → 手一直在抖、永远吃不完」。
+ * 两次尝试之间至少隔 [START_USE_RETRY_TICKS] 个 tick。</p>
+ */
+private var lastStartUseTick = Int.MIN_VALUE
+private const val START_USE_RETRY_TICKS = 5
+
 /** 视野区手势能做的全部动作。判定只产出它，执行只在 [ViewKeyGate.apply] 里发生。 */
 internal sealed interface ViewEffect {
     data object LockAttack : ViewEffect
@@ -116,11 +127,10 @@ internal object ViewGestureMachine {
         if (!shouldDecide) return HoldDecision(input.viewState, emptyList())
 
         if (input.itemUsable) {
-            // 「用物品」不占用 USE 键，只主动发一次 useItem 开始吃/拉弓。
-            // 原因：一旦锁住 USE，原版就会拿这一下右键去 useItemOn —— 对着箱子吃、或者
-            // 吃完一口还没续上的空隙里，就会把箱子打开。主动发包既不会误触方块，
-            // 也不会把「按住右键」这件事留给原版去解释。
-            return HoldDecision(ViewPointerState.USING, listOf(ViewEffect.StartUseItem))
+            // 锁 USE 是必须的：原版靠「右键按住」维持 continueUsingItem，不锁就吃不完。
+            // 同时先主动 useItem 一次，抢在原版拿这一下右键去 useItemOn 之前进入使用状态
+            // （否则对着箱子/方块长按会把东西放出去、把箱子打开）。
+            return HoldDecision(ViewPointerState.USING, listOf(ViewEffect.StartUseItem, ViewEffect.LockUse))
         }
         return when (input.crosshairTarget) {
             CrosshairTarget.BLOCK -> HoldDecision(ViewPointerState.BREAKING, listOf(ViewEffect.LockAttack))
@@ -201,7 +211,13 @@ internal fun Context.viewGestureRefactored() {
     val gate = ViewKeyGate(
         handler = keyBindingHandler,
         owner = viewUuid,
-        startUsingItem = { findUsableHand(config)?.let(::startUsingHeldItem) },
+        startUsingItem = {
+            val hand = findUsableHand(config)
+            if (hand != null) {
+                lastStartUseTick = timer.clientTick
+                startUsingHeldItem(hand)
+            }
+        },
         swingArm = ::swingArm,
     )
 
@@ -306,11 +322,17 @@ var releasedView = false
                 // 那时饥饿值已满，自然就走「挖方块」分支。
                 gate.apply(listOf(ViewEffect.UnlockUse, ViewEffect.UnlockAttack), timer.renderTick)
                 nextViewState = ViewPointerState.CONSUMED
-            } else if (!player.isUsingItem && crosshairTarget != CrosshairTarget.ENTITY) {
-                // 上一口吃完了但手指还按着：主动续上（不锁 USE，所以不会顺手开箱子）。
-                // 对着生物时绝不主动 useItem —— 那会把「喂牛/喂羊/驯服」变成自己啃食物，
-                // 交互要留给原版的 interactEntity。
-                gate.apply(listOf(ViewEffect.StartUseItem), timer.renderTick)
+            } else if (player.isUsingItem) {
+                // 正在吃 / 正在拉弓：把 USE 锁续着，原版靠它维持 continueUsingItem
+                gate.apply(listOf(ViewEffect.LockUse), timer.renderTick)
+            } else if (crosshairTarget != CrosshairTarget.ENTITY &&
+                timer.clientTick - lastStartUseTick >= START_USE_RETRY_TICKS
+            ) {
+                // 上一口刚吃完：这一两个 tick 里既没在吃、右键却还按着，原版就会拿它去
+                // useItemOn（对着箱子就是开箱子）。所以先把锁撤掉，再主动续下一口 ——
+                // 间隙里右键是松的，没有任何东西能落到方块上。
+                // 对着生物时绝不主动 useItem：交互要留给原版的 interactEntity。
+                gate.apply(listOf(ViewEffect.UnlockUse, ViewEffect.StartUseItem), timer.renderTick)
             }
         }
 
