@@ -21,6 +21,7 @@
     "KeyboardInputMixin",
     "MultiPlayerGameModeMixin",
     "ToggleKeyMappingMixin",
-    "PlayerBlockingMixin"
+    "PlayerBlockingMixin",
+    "PlayerAttackMixin"
   ]
 }

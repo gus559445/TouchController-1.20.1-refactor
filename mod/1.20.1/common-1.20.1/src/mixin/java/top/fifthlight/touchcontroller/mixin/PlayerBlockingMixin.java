@@ -42,6 +42,10 @@ public abstract class PlayerBlockingMixin {
         if (self.isUsingItem()) {
             return;
         }
+        // 刚攻击过：基岩版挥拳时盾是放下的，这里用 8 tick 收手窗口对齐
+        if (ShieldCooldown.isCooling(self.getId(), self.tickCount)) {
+            return;
+        }
         if (!self.isShiftKeyDown()) {
             return;
         }
