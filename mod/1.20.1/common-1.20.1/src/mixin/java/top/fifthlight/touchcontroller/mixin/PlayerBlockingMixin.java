@@ -22,7 +22,7 @@ import top.fifthlight.touchcontroller.common_1_20_1.refactor.BedrockShieldFlag;
  */
 @Mixin(Player.class)
 public abstract class PlayerBlockingMixin {
-    @Inject(method = "isBlocking", at = @At("RETURN"), cancellable = true)
+    @Inject(method = "isBlocking()Z", at = @At("RETURN"), cancellable = true)
     private void touchController$sneakToBlock(CallbackInfoReturnable<Boolean> cir) {
         if (cir.getReturnValueZ()) {
             return;

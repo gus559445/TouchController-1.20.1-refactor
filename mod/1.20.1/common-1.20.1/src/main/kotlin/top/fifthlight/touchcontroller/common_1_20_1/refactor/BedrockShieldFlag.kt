@@ -8,7 +8,8 @@ package top.fifthlight.touchcontroller.common_1_20_1.refactor
  * 这里由 [viewGestureRefactored] 每帧写一次，mixin 只读一个 boolean。</p>
  */
 object BedrockShieldFlag {
-    @JvmStatic
+    /** @JvmField：Java 侧（mixin）要直接读这个静态字段，@JvmStatic 只生成 getter/setter。 */
+    @JvmField
     @Volatile
     var sneakToBlock: Boolean = true
 }
