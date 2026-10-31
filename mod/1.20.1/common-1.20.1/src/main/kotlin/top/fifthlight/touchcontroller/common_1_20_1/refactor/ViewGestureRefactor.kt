@@ -204,7 +204,7 @@ internal fun Context.viewGestureRefactored() {
     val gate = ViewKeyGate(
         handler = keyBindingHandler,
         owner = viewUuid,
-        startUsingItem = { findUsableHand(config.item.usableItems)?.let(::startUsingHeldItem) },
+        startUsingItem = { findUsableHand(config)?.let(::startUsingHeldItem) },
         swingArm = ::swingArm,
     )
 
@@ -295,7 +295,7 @@ internal fun Context.viewGestureRefactored() {
                 crosshairTarget = crosshairTarget,
                 // 上游只看「物品在不在可用清单里」；满饥饿拿食物也会被判成可用，
                 // 于是长按方块变成吃东西（吃不下）而不挖。这里换成本刻真的能不能用。
-                itemUsable = isHeldItemUsableNow(config.item.usableItems),
+                itemUsable = isHeldItemUsableNow(config),
                 holdDetectTicks = config.control.viewHoldDetectTicks,
             )
         )
@@ -303,7 +303,7 @@ internal fun Context.viewGestureRefactored() {
 
         var nextViewState = decision.newViewState
         if (nextViewState == ViewPointerState.USING) {
-            if (!isHeldItemUsableNow(config.item.usableItems)) {
+            if (!isHeldItemUsableNow(config)) {
                 // 吃饱了 / 物品用完：撤掉 USE+ATTACK，并把这一按就地终结（CONSUMED）。
                 // 手指继续按着也不再有反应——不挖、不用、不交互；只有松手重按才会重新判定，
                 // 那时饥饿值已满，自然就走「挖方块」分支。

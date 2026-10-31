@@ -3,8 +3,9 @@ package top.fifthlight.touchcontroller.common_1_20_1.refactor
 import net.minecraft.client.Minecraft
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.item.ProjectileWeaponItem
+import net.minecraft.world.item.ShieldItem
 import top.fifthlight.combine.platform_1_20_1.toCombine
-import top.fifthlight.touchcontroller.common.config.ItemList
+import top.fifthlight.touchcontroller.common.config.GlobalConfig
 
 /** 原版饮食上限：饱食度到 20 就吃不下了。 */
 private const val MAX_FOOD_LEVEL = 20
@@ -25,12 +26,16 @@ private const val MAX_FOOD_LEVEL = 20
  *   <li>普通食物 → 只有 `foodLevel &lt; 20` 才算能用。</li>
  * </ul>
  */
-internal fun findUsableHand(list: ItemList): InteractionHand? {
+internal fun findUsableHand(config: GlobalConfig): InteractionHand? {
+    val list = config.item.usableItems
     val minecraftPlayer = Minecraft.getInstance().player ?: return null
     return InteractionHand.entries.firstOrNull { hand ->
         val stack = minecraftPlayer.getItemInHand(hand)
         if (stack.isEmpty) return@firstOrNull false
         if (stack.toCombine().item !in list) return@firstOrNull false
+        // 盾牌：基岩版只有「按住 USE 就是举盾」这一条通路，没有前置条件。
+        // 关掉「长按举盾」时，盾牌不参与长按使用 —— 拿盾长按方块直接挖。
+        if (stack.item is ShieldItem && !config.item.shieldHoldToBlock) return@firstOrNull false
         // 弓 / 弩：没有弹药就拉不动。上游会照样判「能用」→ 锁 USE → 长按方块既不射也不挖。
         // 这里按原版 getProjectile 的实际结果判断，没箭就当这手用不出去，长按改判挖方块。
         if (stack.item is ProjectileWeaponItem && minecraftPlayer.getProjectile(stack).isEmpty) {
@@ -43,7 +48,7 @@ internal fun findUsableHand(list: ItemList): InteractionHand? {
     }
 }
 
-internal fun isHeldItemUsableNow(list: ItemList): Boolean = findUsableHand(list) != null
+internal fun isHeldItemUsableNow(config: GlobalConfig): Boolean = findUsableHand(config) != null
 
 /**
  * 主动**开始**使用手上物品（吃第一口 / 拉弓），不等原版从右键路径自己走到这一步。
