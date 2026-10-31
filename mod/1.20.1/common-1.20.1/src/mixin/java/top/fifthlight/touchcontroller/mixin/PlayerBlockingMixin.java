@@ -36,6 +36,12 @@ public abstract class PlayerBlockingMixin {
         if (!((Object) this instanceof Player self)) {
             return;
         }
+        // 主手正在使用物品（吃东西、拉弓、原版右键举盾）时，这一下由原版判定，
+        // 不再额外给「潜行举盾」的格挡 —— 基岩版举盾和使用物品是同一个动作，
+        // 手上开始用东西盾就放下了，不能一边用一边挡。
+        if (self.isUsingItem()) {
+            return;
+        }
         if (!self.isShiftKeyDown()) {
             return;
         }
