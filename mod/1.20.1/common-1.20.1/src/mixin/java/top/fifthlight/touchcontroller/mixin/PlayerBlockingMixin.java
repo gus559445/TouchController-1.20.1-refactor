@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import top.fifthlight.touchcontroller.common_1_20_1.refactor.BedrockShieldFlag;
+import top.fifthlight.touchcontroller.shield.ShieldCooldown;
 
 /**
  * 基岩版举盾：潜行 + 手上有盾 = 举盾。

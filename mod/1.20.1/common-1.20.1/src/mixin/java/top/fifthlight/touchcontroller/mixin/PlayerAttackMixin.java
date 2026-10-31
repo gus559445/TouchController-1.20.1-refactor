@@ -6,6 +6,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import top.fifthlight.touchcontroller.shield.ShieldCooldown;
 
 /** 攻击时给盾牌记一个收手窗口（基岩版挥拳时盾是放下的）。 */
 @Mixin(Player.class)

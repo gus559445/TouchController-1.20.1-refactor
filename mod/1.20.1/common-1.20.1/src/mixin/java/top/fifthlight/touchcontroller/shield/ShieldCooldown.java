@@ -1,4 +1,4 @@
-package top.fifthlight.touchcontroller.mixin;
+package top.fifthlight.touchcontroller.shield;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
