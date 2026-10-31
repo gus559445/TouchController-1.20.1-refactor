@@ -33,9 +33,9 @@ internal fun findUsableHand(config: GlobalConfig): InteractionHand? {
         val stack = minecraftPlayer.getItemInHand(hand)
         if (stack.isEmpty) return@firstOrNull false
         if (stack.toCombine().item !in list) return@firstOrNull false
-        // 盾牌：基岩版只有「按住 USE 就是举盾」这一条通路，没有前置条件。
-        // 关掉「长按举盾」时，盾牌不参与长按使用 —— 拿盾长按方块直接挖。
-        if (stack.item is ShieldItem && !config.item.shieldHoldToBlock) return@firstOrNull false
+        // 盾牌不走「长按使用」这条路：基岩版举盾是按住潜行键（见 viewGestureRefactored 里的潜行举盾），
+        // 触屏的长按要留给挖方块/吃东西。所以盾牌在这里一律不算「可长按使用」。
+        if (stack.item is ShieldItem) return@firstOrNull false
         // 弓 / 弩：没有弹药就拉不动。上游会照样判「能用」→ 锁 USE → 长按方块既不射也不挖。
         // 这里按原版 getProjectile 的实际结果判断，没箭就当这手用不出去，长按改判挖方块。
         if (stack.item is ProjectileWeaponItem && minecraftPlayer.getProjectile(stack).isEmpty) {
@@ -49,6 +49,14 @@ internal fun findUsableHand(config: GlobalConfig): InteractionHand? {
 }
 
 internal fun isHeldItemUsableNow(config: GlobalConfig): Boolean = findUsableHand(config) != null
+
+/** 找出拿着盾牌的那只手（主手优先），没有则 null。基岩版举盾靠潜行键，不靠「使用」手势。 */
+internal fun findShieldHand(): InteractionHand? {
+    val minecraftPlayer = Minecraft.getInstance().player ?: return null
+    return InteractionHand.entries.firstOrNull { hand ->
+        minecraftPlayer.getItemInHand(hand).item is ShieldItem
+    }
+}
 
 /**
  * 主动**开始**使用手上物品（吃第一口 / 拉弓），不等原版从右键路径自己走到这一步。

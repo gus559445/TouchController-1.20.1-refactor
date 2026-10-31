@@ -32,6 +32,9 @@ import kotlin.uuid.Uuid
 
 private val viewUuid = fastRandomUuid()
 
+/** 举盾的 USE 锁用独立 owner：潜行举盾和「长按用物品」互不干扰 */
+private val shieldUuid = fastRandomUuid()
+
 /** 视野区手势能做的全部动作。判定只产出它，执行只在 [ViewKeyGate.apply] 里发生。 */
 internal sealed interface ViewEffect {
     data object LockAttack : ViewEffect
@@ -201,6 +204,9 @@ internal class ViewKeyGate(
  */
 internal fun Context.viewGestureRefactored() {
     val viewActionProvider: ViewActionProvider = get()
+    val shieldGate = ViewKeyGate(keyBindingHandler, shieldUuid)
+    shieldGate.refresh(timer.renderTick)
+
     val gate = ViewKeyGate(
         handler = keyBindingHandler,
         owner = viewUuid,
@@ -209,6 +215,21 @@ internal fun Context.viewGestureRefactored() {
     )
 
     gate.refresh(timer.renderTick)
+
+    // 基岩版：潜行键就是举盾键（Java 版才是按住使用键）。
+    // 盾牌在手上 + 按住潜行 → 先把玩家推进「正在使用物品」，原版 useItemOn 就被短路了，
+    // 于是举盾时不会顺手开箱子/放方块；挖掘（ATTACK）不受影响，蹲着挖照样能挖。
+    val playerHandle = get<PlayerHandleFactory>().getPlayerHandle()
+    val shieldHand = findShieldHand()
+    val sneakBlocking = shieldHand != null &&
+        config.item.shieldSneakToBlock &&
+        playerHandle?.isSneaking == true
+    if (sneakBlocking && shieldHand != null) {
+        startUsingHeldItem(shieldHand)
+        shieldGate.apply(listOf(ViewEffect.LockUse), timer.renderTick)
+    } else {
+        shieldGate.apply(listOf(ViewEffect.UnlockUse), timer.renderTick)
+    }
 
     var releasedView = false
     for (key in pointers.keys.toList()) {

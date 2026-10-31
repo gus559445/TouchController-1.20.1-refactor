@@ -21,8 +21,8 @@ import top.fifthlight.touchcontroller.common.ui.model.LocalConfigScreenModel
  *
  * <p>基岩版的举盾只有一条通路：按住 USE。这里把这条通路做成可关的开关——</p>
  * <ul>
- *   <li>开（默认）：拿盾牌长按方块 = 举盾，和基岩版一致；</li>
- *   <li>关：盾牌不参与「长按使用」，拿盾牌长按方块直接挖方块。</li>
+ *   <li>开（默认）：拿着盾牌按住潜行键 = 举盾（基岩版做法，Java 版是按使用键）；</li>
+ *   <li>关：潜行只蹲下，不举盾。</li>
  * </ul>
  */
 object ShieldTab : Tab() {
@@ -30,7 +30,7 @@ object ShieldTab : Tab() {
         titleId = Texts.SCREEN_CONFIG_ITEM_SHIELD_TITLE,
         group = TabGroup.ItemGroup,
         index = 3,
-        onReset = { copy(item = item.copy(shieldHoldToBlock = true)) },
+        onReset = { copy(item = item.copy(shieldSneakToBlock = true)) },
     )
 
     @Composable
@@ -45,11 +45,11 @@ object ShieldTab : Tab() {
         ) {
             val uiState by screenModel.uiState.collectAsState()
             SwitchPreferenceItem(
-                title = Text.translatable(Texts.SCREEN_CONFIG_ITEM_SHIELD_HOLD_TO_BLOCK_TITLE),
-                description = Text.translatable(Texts.SCREEN_CONFIG_ITEM_SHIELD_HOLD_TO_BLOCK_DESCRIPTION),
-                value = uiState.config.item.shieldHoldToBlock,
+                title = Text.translatable(Texts.SCREEN_CONFIG_ITEM_SHIELD_SNEAK_TO_BLOCK_TITLE),
+                description = Text.translatable(Texts.SCREEN_CONFIG_ITEM_SHIELD_SNEAK_TO_BLOCK_DESCRIPTION),
+                value = uiState.config.item.shieldSneakToBlock,
                 onValueChanged = { value ->
-                    screenModel.updateConfig { copy(item = item.copy(shieldHoldToBlock = value)) }
+                    screenModel.updateConfig { copy(item = item.copy(shieldSneakToBlock = value)) }
                 },
             )
         }
