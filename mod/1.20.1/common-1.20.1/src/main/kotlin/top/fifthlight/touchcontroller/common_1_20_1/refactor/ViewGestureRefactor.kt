@@ -43,6 +43,9 @@ internal sealed interface ViewEffect {
 
     /** 主动开始使用手上物品（吃第一口 / 拉弓），抢在原版拿这一下右键去放方块之前 */
     data object StartUseItem : ViewEffect
+
+    /** 补一次挥手：点方块时即使原版没做成任何事，也要有可见反馈 */
+    data object SwingArm : ViewEffect
 }
 
 /**
@@ -96,7 +99,10 @@ internal object ViewGestureMachine {
                 if (!isTap) return ReleaseDecision(emptyList())
                 when (input.crosshairTarget()) {
                     null -> ReleaseDecision(emptyList(), abortRemainingReleases = true)
-                    CrosshairTarget.BLOCK, CrosshairTarget.MISS -> ReleaseDecision(listOf(ViewEffect.TapUse))
+                    // 点方块：补一次挥手。原版只在 useItemOn 真的做成时才挥，
+                    // 拿用不出去的东西点方块会一点反馈都没有。
+                    CrosshairTarget.BLOCK -> ReleaseDecision(listOf(ViewEffect.SwingArm, ViewEffect.TapUse))
+                    CrosshairTarget.MISS -> ReleaseDecision(listOf(ViewEffect.TapUse))
                     CrosshairTarget.ENTITY -> ReleaseDecision(listOf(ViewEffect.TapAttack))
                 }
             }
@@ -141,6 +147,8 @@ internal class ViewKeyGate(
     private val owner: Uuid,
     /** 执行 [ViewEffect.StartUseItem]：1.20.1 侧调 gameMode.useItem 真正开始吃/拉弓 */
     private val startUsingItem: () -> Unit = {},
+    /** 执行 [ViewEffect.SwingArm]：1.20.1 侧调 player.swing */
+    private val swingArm: () -> Unit = {},
 ) {
     fun attack(): KeyBindingState = handler.getState(DefaultKeyBindingType.ATTACK)
 
@@ -161,6 +169,7 @@ internal class ViewKeyGate(
                 ViewEffect.TapAttack -> attack().click()
                 ViewEffect.TapUse -> use().click()
                 ViewEffect.StartUseItem -> startUsingItem()
+                ViewEffect.SwingArm -> swingArm()
             }
         }
         if (assertLocks) checkMutualExclusion()
@@ -192,9 +201,12 @@ internal class ViewKeyGate(
  */
 internal fun Context.viewGestureRefactored() {
     val viewActionProvider: ViewActionProvider = get()
-    val gate = ViewKeyGate(keyBindingHandler, viewUuid) {
-        findUsableHand(config.item.usableItems)?.let(::startUsingHeldItem)
-    }
+    val gate = ViewKeyGate(
+        handler = keyBindingHandler,
+        owner = viewUuid,
+        startUsingItem = { findUsableHand(config.item.usableItems)?.let(::startUsingHeldItem) },
+        swingArm = ::swingArm,
+    )
 
     gate.refresh(timer.renderTick)
 
