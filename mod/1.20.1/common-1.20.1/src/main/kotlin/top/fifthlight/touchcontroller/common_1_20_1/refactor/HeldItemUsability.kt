@@ -28,18 +28,23 @@ private const val MAX_FOOD_LEVEL = 20
 internal fun findUsableHand(config: GlobalConfig): InteractionHand? {
     val list = config.item.usableItems
     val minecraftPlayer = Minecraft.getInstance().player ?: return null
+    // 创造/旁观：原版 Player.canEat 会走 abilities.invulnerable 分支，饿不着也能吃；
+    // getProjectile 在 instabuild 时直接给箭。所以这里要放行，不能按生存模式的
+    // 「饥饿值/弹药」去否掉创造模式本来就能用的东西。
+    val creative = minecraftPlayer.abilities.instabuild
     return InteractionHand.entries.firstOrNull { hand ->
         val stack = minecraftPlayer.getItemInHand(hand)
         if (stack.isEmpty) return@firstOrNull false
         if (stack.toCombine().item !in list) return@firstOrNull false
         // 弓 / 弩：没有弹药就拉不动。上游会照样判「能用」→ 锁 USE → 长按方块既不射也不挖。
         // 这里按原版 getProjectile 的实际结果判断，没箭就当这手用不出去，长按改判挖方块。
-        if (stack.item is ProjectileWeaponItem && minecraftPlayer.getProjectile(stack).isEmpty) {
+        if (!creative && stack.item is ProjectileWeaponItem && minecraftPlayer.getProjectile(stack).isEmpty) {
             return@firstOrNull false
         }
         if (!stack.isEdible) return@firstOrNull true
         val food = stack.item.getFoodProperties() ?: return@firstOrNull true
         if (food.canAlwaysEat()) return@firstOrNull true
+        if (creative) return@firstOrNull true
         minecraftPlayer.foodData.foodLevel < MAX_FOOD_LEVEL
     }
 }
