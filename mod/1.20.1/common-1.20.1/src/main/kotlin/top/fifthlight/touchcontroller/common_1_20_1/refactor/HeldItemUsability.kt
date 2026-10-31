@@ -4,7 +4,7 @@ import net.minecraft.client.Minecraft
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.item.ProjectileWeaponItem
 import top.fifthlight.combine.platform_1_20_1.toCombine
-import top.fifthlight.touchcontroller.common.config.GlobalConfig
+import top.fifthlight.touchcontroller.common.config.ItemList
 
 /** 原版饮食上限：饱食度到 20 就吃不下了。 */
 private const val MAX_FOOD_LEVEL = 20
@@ -25,33 +25,25 @@ private const val MAX_FOOD_LEVEL = 20
  *   <li>普通食物 → 只有 `foodLevel &lt; 20` 才算能用。</li>
  * </ul>
  */
-internal fun findUsableHand(config: GlobalConfig): InteractionHand? {
-    val list = config.item.usableItems
+internal fun findUsableHand(list: ItemList): InteractionHand? {
     val minecraftPlayer = Minecraft.getInstance().player ?: return null
-    // 创造/旁观：原版 Player.canEat 会走 abilities.invulnerable 分支，饿不着也能吃；
-    // getProjectile 在 instabuild 时直接给箭。所以这里要放行，不能按生存模式的
-    // 「饥饿值/弹药」去否掉创造模式本来就能用的东西。
-    val creative = minecraftPlayer.abilities.instabuild
     return InteractionHand.entries.firstOrNull { hand ->
         val stack = minecraftPlayer.getItemInHand(hand)
         if (stack.isEmpty) return@firstOrNull false
         if (stack.toCombine().item !in list) return@firstOrNull false
         // 弓 / 弩：没有弹药就拉不动。上游会照样判「能用」→ 锁 USE → 长按方块既不射也不挖。
         // 这里按原版 getProjectile 的实际结果判断，没箭就当这手用不出去，长按改判挖方块。
-        if (!creative && stack.item is ProjectileWeaponItem && minecraftPlayer.getProjectile(stack).isEmpty) {
+        if (stack.item is ProjectileWeaponItem && minecraftPlayer.getProjectile(stack).isEmpty) {
             return@firstOrNull false
         }
         if (!stack.isEdible) return@firstOrNull true
         val food = stack.item.getFoodProperties() ?: return@firstOrNull true
         if (food.canAlwaysEat()) return@firstOrNull true
-        if (creative) return@firstOrNull true
         minecraftPlayer.foodData.foodLevel < MAX_FOOD_LEVEL
     }
 }
 
-internal fun isHeldItemUsableNow(config: GlobalConfig): Boolean = findUsableHand(config) != null
-
-
+internal fun isHeldItemUsableNow(list: ItemList): Boolean = findUsableHand(list) != null
 
 /**
  * 主动**开始**使用手上物品（吃第一口 / 拉弓），不等原版从右键路径自己走到这一步。
