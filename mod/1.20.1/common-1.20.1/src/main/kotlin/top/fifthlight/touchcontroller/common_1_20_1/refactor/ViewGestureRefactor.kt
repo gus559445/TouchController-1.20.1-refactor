@@ -116,14 +116,11 @@ internal object ViewGestureMachine {
         if (!shouldDecide) return HoldDecision(input.viewState, emptyList())
 
         if (input.itemUsable) {
-            // 对着方块时必须先主动「开始使用」：甜浆果 / 发光浆果这类既是食物又是 BlockItem 的东西，
-            // 否则原版会先走 useItemOn，把浆果放到方块上，根本吃不到。
-            val effects = if (input.crosshairTarget == CrosshairTarget.BLOCK) {
-                listOf(ViewEffect.StartUseItem, ViewEffect.LockUse)
-            } else {
-                listOf(ViewEffect.LockUse)
-            }
-            return HoldDecision(ViewPointerState.USING, effects)
+            // 「用物品」不占用 USE 键，只主动发一次 useItem 开始吃/拉弓。
+            // 原因：一旦锁住 USE，原版就会拿这一下右键去 useItemOn —— 对着箱子吃、或者
+            // 吃完一口还没续上的空隙里，就会把箱子打开。主动发包既不会误触方块，
+            // 也不会把「按住右键」这件事留给原版去解释。
+            return HoldDecision(ViewPointerState.USING, listOf(ViewEffect.StartUseItem))
         }
         return when (input.crosshairTarget) {
             CrosshairTarget.BLOCK -> HoldDecision(ViewPointerState.BREAKING, listOf(ViewEffect.LockAttack))
@@ -310,9 +307,9 @@ var releasedView = false
                 gate.apply(listOf(ViewEffect.UnlockUse, ViewEffect.UnlockAttack), timer.renderTick)
                 nextViewState = ViewPointerState.CONSUMED
             } else if (!player.isUsingItem && crosshairTarget != CrosshairTarget.ENTITY) {
-                // 上一口吃完了但手指还按着：续上，别让这一下右键落到方块上变成放置。
+                // 上一口吃完了但手指还按着：主动续上（不锁 USE，所以不会顺手开箱子）。
                 // 对着生物时绝不主动 useItem —— 那会把「喂牛/喂羊/驯服」变成自己啃食物，
-                // 右键要留给原版的 interactEntity。
+                // 交互要留给原版的 interactEntity。
                 gate.apply(listOf(ViewEffect.StartUseItem), timer.renderTick)
             }
         }
