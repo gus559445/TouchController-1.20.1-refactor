@@ -12,8 +12,7 @@ package top.fifthlight.touchcontroller.helper;
  * mixin 在 `MultiPlayerGameMode.useItemOn` 的 HEAD 读到 true 就返回 PASS。</p>
  */
 public final class EatGuard {
-    @Volatile
-    public static boolean suppressBlockInteraction = false;
+    public static volatile boolean suppressBlockInteraction = false;
 
     private EatGuard() {
     }
